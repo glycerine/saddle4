@@ -3,25 +3,36 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	// "strings"
 )
 
 func main() {
 	a := os.Args
-	if len(a) < 2 {
-		fmt.Fprintf(os.Stderr, "must supply name of .pony file to format\n")
-		os.Exit(1)
-	}
-	path := os.Args[1]
-	if !fileExists(path) {
-		fmt.Fprintf(os.Stderr, "error: file not found for path '%v'\n", path)
-		os.Exit(1)
-	}
-	by, err := os.ReadFile(path)
-	panicOn(err)
-	newline := []byte("\n")
 
+	stdin := false
+	stdinbuf := bytes.NewBuffer(nil)
+
+	var path string
+	var err error
+	var by []byte
+	if len(a) < 2 {
+		stdin = true
+		//fmt.Fprintf(os.Stderr, "must supply name of .pony file to format\n")
+		//os.Exit(1)
+		io.Copy(stdinbuf, os.Stdin) // dest, source
+		by = stdinbuf.Bytes()
+	} else {
+		path = os.Args[1]
+		if !fileExists(path) {
+			fmt.Fprintf(os.Stderr, "error: file not found for path '%v'\n", path)
+			os.Exit(1)
+		}
+		by, err = os.ReadFile(path)
+		panicOn(err)
+	}
+	newline := []byte("\n")
 	byby := bytes.Split(by, newline)
 	//vv("len byby = %v", len(byby))
 	//vv("byby[0] = '%v'", string(byby[0]))
@@ -67,21 +78,35 @@ func main() {
 		prevDefn = defn(indented[i])
 		prevLead = lead
 	}
-	path1 := path + ".ponyfmt"
+
+	// output =======================
+	var w io.WriteCloser
+	var path1 string
+	if stdin {
+		w = os.Stdout
+	} else {
+		path1 = path + ".ponyfmt"
+		fd, err := os.Create(path1)
+		panicOn(err)
+		defer fd.Close()
+		w = fd
+	}
+
 	path2 := path + ".prev"
-	fd, err := os.Create(path1)
-	panicOn(err)
-	defer fd.Close()
 	for _, b := range indented {
-		_, err = fd.Write(b)
+		_, err = w.Write(b)
 		panicOn(err)
-		_, err = fd.Write(newline)
+		_, err = w.Write(newline)
 		panicOn(err)
+	}
+	if stdin {
+		return
 	}
 	// back up original to .prev
 	panicOn(os.Rename(path, path2))
 	// put .ponyfmt in place of original path.
 	panicOn(os.Rename(path1, path))
+
 }
 
 // ends in =>
