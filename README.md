@@ -15,6 +15,9 @@ clauses are the most egregiously wrong on occassion.
 
 installation: `go install github.com/glycerine/saddle4@latest`
 
+use: either `saddle4 your_code.pony`; or it will read from stdin
+and write to stdout if no path argument is given.
+
 ---
 Author: Jason E. Aten, Ph.D.
 
