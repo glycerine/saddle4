@@ -27,12 +27,29 @@ func main() {
 	//vv("byby[0] = '%v'", string(byby[0]))
 
 	indented := make([][]byte, len(byby))
+	var spacelead []int
+	var prevDefn bool
+	var prevLead int
+	var accum int
+
 	for i, b := range byby {
 		lead := firstNonSpace(b)
 		//vv("i= %v; lead = %v, b = '%v'", i, lead, string(b))
+		if lead < prevLead {
+			accum = 0
+		}
 
+		b = chompTrailingWhitespace(b)
 		if lead >= 0 { // skip no leading space lines; or all spaces.
 			delta := closestStopDelta(lead, 4)
+			if i > 0 {
+				if spacelead[i-1] == lead+delta && prevDefn {
+					accum += 4
+				}
+			}
+			delta += accum
+			spacelead = append(spacelead, lead+delta)
+
 			//vv("i = %v; delta = %v", i, delta)
 			switch {
 			case delta < 0:
@@ -45,7 +62,10 @@ func main() {
 			}
 		} else {
 			indented[i] = append([]byte{}, b...)
+			spacelead = append(spacelead, 0)
 		}
+		prevDefn = defn(indented[i])
+		prevLead = lead
 	}
 	path1 := path + ".ponyfmt"
 	path2 := path + ".prev"
@@ -62,6 +82,44 @@ func main() {
 	panicOn(os.Rename(path, path2))
 	// put .ponyfmt in place of original path.
 	panicOn(os.Rename(path1, path))
+}
+
+// ends in =>
+func defn(b []byte) bool {
+	n := len(b)
+	if n < 3 {
+		return false
+	}
+	if b[n-1] == '>' && b[n-2] == '=' {
+		return true
+	}
+	// can we piggy back then too?
+	return then(b)
+}
+
+// ends in then
+func then(b []byte) bool {
+	n := len(b)
+	if n < 5 {
+		return false
+	}
+	return string(b[n-4:]) == "then"
+}
+
+func chompTrailingWhitespace(b []byte) (r []byte) {
+	n := len(b)
+	if n == 0 {
+		return b
+	}
+	for i := n - 1; i >= 0; i-- {
+		switch b[i] {
+		case ' ':
+		case '\t':
+		default:
+			return b[:i+1]
+		}
+	}
+	return b
 }
 
 func closestStopDelta(n, tabstop int) int {
